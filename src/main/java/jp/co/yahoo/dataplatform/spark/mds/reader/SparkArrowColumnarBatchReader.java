@@ -20,7 +20,7 @@ package jp.co.yahoo.dataplatform.spark.mds.reader;
 import java.io.IOException;
 import java.io.InputStream;
 
-import org.apache.arrow.vector.complex.NullableMapVector;
+import org.apache.arrow.vector.complex.StructVector;
 
 import org.apache.spark.sql.catalyst.InternalRow;
 import org.apache.spark.sql.types.StructType;
@@ -77,7 +77,7 @@ public class SparkArrowColumnarBatchReader implements IColumnarBatchReader{
 
   @Override
   public ColumnarBatch next() throws IOException{
-    NullableMapVector mapVector = (NullableMapVector)( reader.next() );
+    StructVector mapVector = (StructVector)( reader.next() );
     ColumnVector[] childColumns = new ColumnVector[mapVector.size()+partitionSchema.length()];
     for( int i = 0; i < mapVector.size(); i++ ){
       childColumns[i] = new ArrowColumnVector( mapVector.getVectorById(i) );
