@@ -20,12 +20,18 @@ version := "1.0"
 scalaVersion := "2.11.8"
 fork := true
 
-dependencyOverrides += "com.fasterxml.jackson.core" % "jackson-core" % "2.8.7"
-dependencyOverrides += "com.fasterxml.jackson.core" % "jackson-databind" % "2.8.7"
-dependencyOverrides += "com.fasterxml.jackson.module" % "jackson-module-scala_2.11" % "2.8.7"
+javacOptions ++= Seq("-source", "1.8", "-target", "1.8", "-encoding", "UTF-8")
+
+libraryDependencies += "junit" % "junit" % "4.12" % "test"
+libraryDependencies += "com.novocode" % "junit-interface" % "0.11" % Test exclude("junit", "junit-dep") 
+
+libraryDependencies += "com.fasterxml.jackson.core" % "jackson-core" % "2.8.7"
+libraryDependencies += "com.fasterxml.jackson.core" % "jackson-databind" % "2.8.7"
+libraryDependencies += "com.fasterxml.jackson.module" % "jackson-module-scala_2.11" % "2.8.7"
 
 libraryDependencies += "org.apache.spark" % "spark-core_2.11" % "2.4.0"
 libraryDependencies += "org.apache.spark" % "spark-sql_2.11" % "2.4.0"
+
 libraryDependencies += "jp.co.yahoo.dataplatform.mds" % "multiple-dimension-spread-common" % "0.8.6_hive-1.2.1000.2.6.4.0-91"
 libraryDependencies += "jp.co.yahoo.dataplatform.mds" % "multiple-dimension-spread-arrow" % "0.8.6_hive-1.2.1000.2.6.4.0-91"
 libraryDependencies += "jp.co.yahoo.dataplatform.schema" % "schema-spark" % "1.2.0"
