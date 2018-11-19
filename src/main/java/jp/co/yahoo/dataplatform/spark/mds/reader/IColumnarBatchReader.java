@@ -19,7 +19,7 @@ package jp.co.yahoo.dataplatform.spark.mds.reader;
 
 import java.io.IOException;
 
-import org.apache.spark.sql.vectorized.ColumnarBatch;
+import org.apache.spark.sql.execution.vectorized.ColumnarBatch;
 
 import jp.co.yahoo.dataplatform.mds.spread.expression.IExpressionNode;
 

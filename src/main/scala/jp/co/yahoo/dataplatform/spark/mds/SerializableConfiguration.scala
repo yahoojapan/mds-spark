@@ -23,6 +23,7 @@ import scala.util.control.NonFatal
 
 import org.apache.hadoop.conf.Configuration
 
+private[spark]
 class SerializableConfiguration(@transient var value: Configuration) extends Serializable {
 
   def tryOrIOException[T](block: => T): T = {

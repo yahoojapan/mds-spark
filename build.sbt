@@ -19,13 +19,15 @@ name := "Spark MDS"
 version := "1.0"
 scalaVersion := "2.11.8"
 fork := true
+resolvers += "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository"
+//resolvers += "Palantir Repository" at "https://dl.bintray.com/palantir/releases/"
 
 dependencyOverrides += "com.fasterxml.jackson.core" % "jackson-core" % "2.8.7"
 dependencyOverrides += "com.fasterxml.jackson.core" % "jackson-databind" % "2.8.7"
 dependencyOverrides += "com.fasterxml.jackson.module" % "jackson-module-scala_2.11" % "2.8.7"
 
-libraryDependencies += "org.apache.spark" % "spark-core_2.11" % "2.3.0"
-libraryDependencies += "org.apache.spark" % "spark-sql_2.11" % "2.3.0"
+libraryDependencies += "org.apache.spark" % "spark-core_2.11" % "2.2.0"
+libraryDependencies += "org.apache.spark" % "spark-sql_2.11" % "2.2.0"
 libraryDependencies += "jp.co.yahoo.dataplatform.mds" % "multiple-dimension-spread-common" % "0.8.0_hive-1.2.1000.2.6.2.0-205"
 libraryDependencies += "jp.co.yahoo.dataplatform.mds" % "multiple-dimension-spread-arrow" % "0.8.0_hive-1.2.1000.2.6.2.0-205"
 libraryDependencies += "jp.co.yahoo.dataplatform.schema" % "schema-spark" % "1.2.0"

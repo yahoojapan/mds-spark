@@ -18,7 +18,7 @@
 package jp.co.yahoo.dataplatform.spark.mds.inmemory;
 
 import org.apache.spark.sql.types.*;
-import org.apache.spark.sql.execution.vectorized.WritableColumnVector;
+import org.apache.spark.sql.execution.vectorized.ColumnVector;
 
 import jp.co.yahoo.dataplatform.mds.inmemory.IMemoryAllocator;
 
@@ -26,7 +26,7 @@ public final class SparkMemoryAllocatorFactory{
 
   private SparkMemoryAllocatorFactory(){}
 
-  public static IMemoryAllocator get( final WritableColumnVector vector , final int rowCount ){
+  public static IMemoryAllocator get( final ColumnVector vector , final int rowCount ){
     DataType schema = vector.dataType();
     if( schema instanceof ArrayType ){
       return new SparkArrayMemoryAllocator( vector , rowCount );
@@ -36,10 +36,7 @@ public final class SparkMemoryAllocatorFactory{
       return new SparkStructMemoryAllocator( vector , rowCount , st );
     }
     else if( schema instanceof MapType ){
-      if( ! ( vector.getChild(0).dataType() instanceof StringType ) ){
-        throw new UnsupportedOperationException( "Unsupported map key datatype : " + schema.toString() + ". Map key type is string only.");
-      }
-      return new SparkMapMemoryAllocator( vector , rowCount );
+      throw new UnsupportedOperationException( "Unsupported datatype : " + schema.toString() );
     }
     else if( schema instanceof StringType ){
       return new SparkBytesMemoryAllocator( vector , rowCount );

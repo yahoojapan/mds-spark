@@ -24,7 +24,8 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FileStatus
 import org.apache.hadoop.fs.FileSystem
 import org.apache.hadoop.fs.Path
-import org.apache.hadoop.mapreduce.Job
+import org.apache.hadoop.mapreduce._
+import org.apache.hadoop.mapreduce.task.TaskAttemptContextImpl
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
@@ -33,16 +34,16 @@ import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.sources.DataSourceRegister
 import org.apache.spark.sql.types.{StructType, DataType}
-import org.apache.spark.sql.vectorized.ColumnVector
+import org.apache.spark.sql.execution.vectorized.ColumnVector
 
 import jp.co.yahoo.dataplatform.mds.spread.expression.AndExpressionNode
 
 import jp.co.yahoo.dataplatform.spark.mds.schema.SchemaFactory
 import jp.co.yahoo.dataplatform.spark.mds.reader.IColumnarBatchReader
 import jp.co.yahoo.dataplatform.spark.mds.reader.SparkColumnarBatchReader
-import jp.co.yahoo.dataplatform.spark.mds.reader.SparkArrowColumnarBatchReader
 import jp.co.yahoo.dataplatform.spark.mds.utils.ProjectionPushdownUtil
 import jp.co.yahoo.dataplatform.spark.mds.pushdown.FilterConnectorFactory
+//import jp.co.yahoo.dataplatform.spark.mds.util.SerializableConfiguration
 
 class MDSFileFormat extends FileFormat with DataSourceRegister with Serializable{
 
@@ -90,15 +91,6 @@ class MDSFileFormat extends FileFormat with DataSourceRegister with Serializable
     true
   }
 
-  override def vectorTypes(
-      requiredSchema: StructType,
-      partitionSchema: StructType,
-      sqlConf: SQLConf): Option[Seq[String]] = {
-    Option(
-      Seq.fill(requiredSchema.fields.length + partitionSchema.fields.length)( classOf[ColumnVector].getName ) 
-    )
-  }
-
   override def buildReaderWithPartitionValues(
       sparkSession: SparkSession, 
       dataSchema: StructType, 
@@ -108,9 +100,8 @@ class MDSFileFormat extends FileFormat with DataSourceRegister with Serializable
       options: Map[String, String],
       hadoopConf: Configuration): (PartitionedFile) => Iterator[InternalRow] = {
     val sqlConf = sparkSession.sessionState.conf
-    val enableOffHeapColumnVector = sqlConf.offHeapColumnVectorEnabled
     val broadcastedHadoopConf =
-      sparkSession.sparkContext.broadcast(new SerializableConfiguration(hadoopConf))
+      sparkSession.sparkContext.broadcast( new SerializableConfiguration( hadoopConf ) )
     val projectionPushdownJson = ProjectionPushdownUtil.createProjectionPushdownJson( requiredSchema )
     val requiredSchemaJson = requiredSchema.json
     val partitionSchemaJson = partitionSchema.json
@@ -124,7 +115,8 @@ class MDSFileFormat extends FileFormat with DataSourceRegister with Serializable
       val partSchema:DataType = DataType.fromJson( partitionSchemaJson )
       assert(file.partitionValues.numFields == partitionSchema.size )
       val path:Path = new Path( new URI(file.filePath) ) 
-      val fs:FileSystem = FileSystem.get( broadcastedHadoopConf.value.value )
+      //val fs:FileSystem = FileSystem.get( broadcastedHadoopConf.value.value )
+      val fs:FileSystem = FileSystem.get( new Configuration )
       val mdsConfig = new jp.co.yahoo.dataplatform.config.Configuration()
       if( expandOption.nonEmpty ){
         mdsConfig.set( "spread.reader.expand.column" , expandOption.get )
@@ -134,13 +126,7 @@ class MDSFileFormat extends FileFormat with DataSourceRegister with Serializable
       }
       mdsConfig.set( "spread.reader.read.column.names" , projectionPushdownJson );
 
-      var reader:IColumnarBatchReader = null
-      if( enableArrowReader.nonEmpty && "true".equals( enableArrowReader.get ) ){
-        reader = new SparkArrowColumnarBatchReader( partSchema.asInstanceOf[StructType] , file.partitionValues , readSchema.asInstanceOf[StructType] , fs.open( path ) , fs.getFileStatus( path ).getLen() , file.start , file.length , mdsConfig , node )
-      }
-      else{
-        reader = new SparkColumnarBatchReader( partSchema.asInstanceOf[StructType] , file.partitionValues , readSchema.asInstanceOf[StructType] , fs.open( path ) , fs.getFileStatus( path ).getLen() , file.start , file.length , mdsConfig , node )
-      }
+      var reader:IColumnarBatchReader = new SparkColumnarBatchReader( partSchema.asInstanceOf[StructType] , file.partitionValues , readSchema.asInstanceOf[StructType] , fs.open( path ) , fs.getFileStatus( path ).getLen() , file.start , file.length , mdsConfig , node )
       reader.setLineFilterNode( node )
       val itr = new InternalRowIterator( reader )
       Option( TaskContext.get() ).foreach( _.addTaskCompletionListener( _ => itr.close() ) )
