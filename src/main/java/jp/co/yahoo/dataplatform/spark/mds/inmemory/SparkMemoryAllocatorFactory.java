@@ -17,60 +17,53 @@
  */
 package jp.co.yahoo.dataplatform.spark.mds.inmemory;
 
+import java.util.Objects;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.spark.sql.types.*;
 import org.apache.spark.sql.execution.vectorized.WritableColumnVector;
-
 import jp.co.yahoo.dataplatform.mds.inmemory.IMemoryAllocator;
 
-public final class SparkMemoryAllocatorFactory{
 
-  private SparkMemoryAllocatorFactory(){}
+public final class SparkMemoryAllocatorFactory {
+  private static final Map<Class, MemoryAllocatorFactory> dispatch = new HashMap<>();
+  static {
+    dispatch.put(ArrayType.class,   (v, rc) -> new SparkArrayMemoryAllocator(v, rc));
+    dispatch.put(StructType.class,  (v, rc) -> new SparkStructMemoryAllocator(v, rc, (StructType)v.dataType()));
+    dispatch.put(StringType.class,  (v, rc) -> new SparkBytesMemoryAllocator(v, rc));
+    dispatch.put(BinaryType.class,  (v, rc) -> new SparkBytesMemoryAllocator(v, rc));
+    dispatch.put(BooleanType.class, (v, rc) -> new SparkBooleanMemoryAllocator(v, rc));
+    dispatch.put(ByteType.class,    (v, rc) -> new SparkByteMemoryAllocator(v, rc));
+    dispatch.put(ShortType.class,   (v, rc) -> new SparkShortMemoryAllocator(v, rc));
+    dispatch.put(IntegerType.class, (v, rc) -> new SparkIntegerMemoryAllocator(v, rc));
+    dispatch.put(LongType.class,    (v, rc) -> new SparkLongMemoryAllocator(v, rc));
+    dispatch.put(FloatType.class,   (v, rc) -> new SparkFloatMemoryAllocator(v, rc));
+    dispatch.put(DoubleType.class,  (v, rc) -> new SparkDoubleMemoryAllocator(v, rc));
 
-  public static IMemoryAllocator get( final WritableColumnVector vector , final int rowCount ){
-    DataType schema = vector.dataType();
-    if( schema instanceof ArrayType ){
-      return new SparkArrayMemoryAllocator( vector , rowCount );
-    }
-    else if( schema instanceof StructType ){
-      StructType st = (StructType)schema;
-      return new SparkStructMemoryAllocator( vector , rowCount , st );
-    }
-    else if( schema instanceof MapType ){
-      if( ! ( vector.getChild(0).dataType() instanceof StringType ) ){
-        throw new UnsupportedOperationException( "Unsupported map key datatype : " + schema.toString() + ". Map key type is string only.");
+    dispatch.put(MapType.class, (vector, rowCount) -> {
+      if (!(vector.getChild(0).dataType() instanceof StringType)) {
+        throw new UnsupportedOperationException(makeErrorMessage(vector) + ". Map key type is string only.");
       }
-      return new SparkMapMemoryAllocator( vector , rowCount );
-    }
-    else if( schema instanceof StringType ){
-      return new SparkBytesMemoryAllocator( vector , rowCount );
-    }
-    else if( schema instanceof BinaryType ){
-      return new SparkBytesMemoryAllocator( vector , rowCount );
-    }
-    else if( schema instanceof BooleanType ){
-      return new SparkBooleanMemoryAllocator( vector , rowCount );
-    }
-    else if( schema instanceof ByteType ){
-      return new SparkByteMemoryAllocator( vector , rowCount );
-    }
-    else if( schema instanceof ShortType ){
-      return new SparkShortMemoryAllocator( vector , rowCount );
-    }
-    else if( schema instanceof IntegerType ){
-      return new SparkIntegerMemoryAllocator( vector , rowCount );
-    }
-    else if( schema instanceof LongType ){
-      return new SparkLongMemoryAllocator( vector , rowCount );
-    }
-    else if( schema instanceof FloatType ){
-      return new SparkFloatMemoryAllocator( vector , rowCount );
-    }
-    else if( schema instanceof DoubleType ){
-      return new SparkDoubleMemoryAllocator( vector , rowCount );
-    }
-    else{
-      throw new UnsupportedOperationException( "Unsupported datatype : " + schema.toString() );
-    }
+      return new SparkMapMemoryAllocator(vector, rowCount);
+    });
   }
 
+  private SparkMemoryAllocatorFactory() {}
+
+  public static IMemoryAllocator get(final WritableColumnVector vector, final int rowCount) {
+    MemoryAllocatorFactory factory = dispatch.get(vector.dataType().getClass());
+    if (Objects.isNull(factory)) throw new UnsupportedOperationException(makeErrorMessage(vector));
+    return factory.get(vector, rowCount);
+  }
+
+  private static String makeErrorMessage(final WritableColumnVector vector) {
+    return "Unsupported map key datatype : " + vector.dataType().toString();
+  }
+
+  @FunctionalInterface
+  private static interface MemoryAllocatorFactory {
+    IMemoryAllocator get(final WritableColumnVector vector, final int rowCount) throws UnsupportedOperationException;
+  }
 }
+

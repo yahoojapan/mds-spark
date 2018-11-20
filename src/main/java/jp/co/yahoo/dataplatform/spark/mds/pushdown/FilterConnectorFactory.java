@@ -17,6 +17,9 @@
  */
 package jp.co.yahoo.dataplatform.spark.mds.pushdown;
 
+import java.util.Objects;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import java.util.HashSet;
 
@@ -27,246 +30,145 @@ import jp.co.yahoo.dataplatform.schema.objects.*;
 import jp.co.yahoo.dataplatform.mds.spread.expression.*;
 import jp.co.yahoo.dataplatform.mds.spread.column.filter.*;
 
-public final class FilterConnectorFactory{
 
-  public static IExpressionNode get( final Filter filter ){
-    if( filter instanceof And ){
-      return createAnd( (And)filter );
-    }
-    else if( filter instanceof Or ){
-      return createOr( (Or)filter );
-    }
-    else if( filter instanceof Not ){
-      return createNot( (Not)filter );
-    }
-    else if( filter instanceof EqualNullSafe ){
-      return null;
-    }
-    else if( filter instanceof EqualTo ){
-      return createEqualTo( (EqualTo)filter );
-    }
-    else if( filter instanceof GreaterThan ){
-      return createGreaterThan( (GreaterThan)filter );
-    }
-    else if( filter instanceof GreaterThanOrEqual ){
-      return createGreaterThanOrEqual( (GreaterThanOrEqual)filter );
-    }
-    else if( filter instanceof LessThan ){
-      return createLessThan( (LessThan)filter );
-    }
-    else if( filter instanceof LessThanOrEqual ){
-      return createLessThanOrEqual( (LessThanOrEqual)filter );
-    }
-    else if( filter instanceof StringStartsWith ){
-      return createStringStartsWith( (StringStartsWith)filter );
-    }
-    else if( filter instanceof StringEndsWith ){
-      return createStringEndsWith( (StringEndsWith)filter );
-    }
-    else if( filter instanceof StringContains ){
-      return createStringContains( (StringContains)filter );
-    }
-    else if( filter instanceof In ){
-      return createIn( (In)filter );
-    }
-    else if( filter instanceof IsNull ){
-      return null;
-    }
-    else if( filter instanceof IsNotNull ){
-      return null;
-    }
-    else{
-      return null;
-    }
-  }
+public final class FilterConnectorFactory {
+  private static final Map<Class, OperatorFilterFactory> gtDispatch = new HashMap<>();
+  private static final Map<Class, OperatorFilterFactory> geDispatch = new HashMap<>();
+  private static final Map<Class, OperatorFilterFactory> ltDispatch = new HashMap<>();
+  private static final Map<Class, OperatorFilterFactory> leDispatch = new HashMap<>();
+  private static final Map<Class, OperatorFilterFactory> eqDispatch = new HashMap<>();
+  private static final Map<Class, ExpressionNodeFactory> dispatch   = new HashMap<>();
 
-  public static IExpressionNode createAnd( final And filter ){
-    IExpressionNode result = new AndExpressionNode();
-    result.addChildNode( get( filter.left() ) );
-    result.addChildNode( get( filter.right() ) );
-    return result;
-  }
+  static {
+    gtDispatch.put(String.class, (v) -> new GtStringCompareFilter(v.toString()));
+    geDispatch.put(String.class, (v) -> new GeStringCompareFilter(v.toString()));
+    ltDispatch.put(String.class, (v) -> new LtStringCompareFilter(v.toString()));
+    leDispatch.put(String.class, (v) -> new LeStringCompareFilter(v.toString()));
+    eqDispatch.put(String.class, (v) -> new PerfectMatchStringFilter(v.toString()));
 
-  public static IExpressionNode createOr( final Or filter ){
-    IExpressionNode result = new OrExpressionNode();
-    result.addChildNode( get( filter.left() ) );
-    result.addChildNode( get( filter.right() ) );
-    return result;
-  }
+    setDispatchMap(gtDispatch, NumberFilterType.GT);
+    setDispatchMap(geDispatch, NumberFilterType.GE);
+    setDispatchMap(ltDispatch, NumberFilterType.LT);
+    setDispatchMap(leDispatch, NumberFilterType.LE);
+    setDispatchMap(eqDispatch, NumberFilterType.EQUAL);
 
-  public static IExpressionNode createNot( final Not filter ){
-    IExpressionNode result = new NotExpressionNode();
-    result.addChildNode( get( filter.child() ) );
-    return result;
-  }
+    dispatch.put(GreaterThan.class, (f) -> {
+      GreaterThan filter = (GreaterThan)f;
+      Object value = filter.value();
+      OperatorFilterFactory factory = gtDispatch.get(value.getClass());
+      if (Objects.isNull(factory)) return null;
+      return new ExecuterNode(new StringExtractNode(filter.attribute()), factory.apply(value));
+    });
 
-  public static IExpressionNode createGreaterThan( final GreaterThan filter ){
-    Object value = filter.value();
-    if( value instanceof String ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new GtStringCompareFilter( value.toString() ) );
-    }
-    else if( value instanceof Byte ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.GT , new ByteObj( ( (Byte)value ).byteValue() ) ) );
-    }
-    else if( value instanceof Short ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.GT , new ShortObj( ( (Short)value ).shortValue() ) ) );
-    }
-    else if( value instanceof Integer ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.GT , new IntegerObj( ( (Integer)value ).intValue() ) ) );
-    }
-    else if( value instanceof Long ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.GT , new LongObj( ( (Long)value ).longValue() ) ) );
-    }
-    else if( value instanceof Float ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.GT , new FloatObj( ( (Float)value ).floatValue() ) ) );
-    }
-    else if( value instanceof Double ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.GT , new DoubleObj( ( (Double)value ).doubleValue() ) ) );
-    }
-    else{
-      return null;
-    }
-  }
+    dispatch.put(GreaterThanOrEqual.class, (f) -> {
+      GreaterThanOrEqual filter = (GreaterThanOrEqual)f;
+      Object value = filter.value();
+      OperatorFilterFactory factory = geDispatch.get(value.getClass());
+      if (Objects.isNull(factory)) return null;
+      return new ExecuterNode(new StringExtractNode(filter.attribute()), factory.apply(value));
+    });
 
-  public static IExpressionNode createGreaterThanOrEqual( final GreaterThanOrEqual filter ){
-    Object value = filter.value();
-    if( value instanceof String ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new GeStringCompareFilter( value.toString() ) );
-    }
-    else if( value instanceof Byte ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.GE , new ByteObj( ( (Byte)value ).byteValue() ) ) );
-    }
-    else if( value instanceof Short ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.GE , new ShortObj( ( (Short)value ).shortValue() ) ) );
-    }
-    else if( value instanceof Integer ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.GE , new IntegerObj( ( (Integer)value ).intValue() ) ) );
-    }
-    else if( value instanceof Long ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.GE , new LongObj( ( (Long)value ).longValue() ) ) );
-    }
-    else if( value instanceof Float ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.GE , new FloatObj( ( (Float)value ).floatValue() ) ) );
-    }
-    else if( value instanceof Double ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.GE , new DoubleObj( ( (Double)value ).doubleValue() ) ) );
-    }
-    else{
-      return null;
-    }
-  }
+    dispatch.put(LessThan.class, (f) -> {
+      LessThan filter = (LessThan)f;
+      Object value = filter.value();
+      OperatorFilterFactory factory = ltDispatch.get(value.getClass());
+      if (Objects.isNull(factory)) return null;
+      return new ExecuterNode(new StringExtractNode(filter.attribute()), factory.apply(value));
+    });
 
-  public static IExpressionNode createLessThan( final LessThan filter ){
-    Object value = filter.value();
-    if( value instanceof String ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new LtStringCompareFilter( value.toString() ) );
-    }
-    else if( value instanceof Byte ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.LT , new ByteObj( ( (Byte)value ).byteValue() ) ) );
-    }
-    else if( value instanceof Short ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.LT , new ShortObj( ( (Short)value ).shortValue() ) ) );
-    }
-    else if( value instanceof Integer ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.LT , new IntegerObj( ( (Integer)value ).intValue() ) ) );
-    }
-    else if( value instanceof Long ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.LT , new LongObj( ( (Long)value ).longValue() ) ) );
-    }
-    else if( value instanceof Float ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.LT , new FloatObj( ( (Float)value ).floatValue() ) ) );
-    }
-    else if( value instanceof Double ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.LT , new DoubleObj( ( (Double)value ).doubleValue() ) ) );
-    }
-    else{
-      return null;
-    }
-  }
+    dispatch.put(LessThanOrEqual.class, (f) -> {
+      LessThanOrEqual filter = (LessThanOrEqual)f;
+      Object value = filter.value();
+      OperatorFilterFactory factory = leDispatch.get(value.getClass());
+      if (Objects.isNull(factory)) return null;
+      return new ExecuterNode(new StringExtractNode(filter.attribute()), factory.apply(value));
+    });
 
-  public static IExpressionNode createLessThanOrEqual( final LessThanOrEqual filter ){
-    Object value = filter.value();
-    if( value instanceof String ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new LeStringCompareFilter( value.toString() ) );
-    }
-    else if( value instanceof Byte ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.LE , new ByteObj( ( (Byte)value ).byteValue() ) ) );
-    }
-    else if( value instanceof Short ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.LE , new ShortObj( ( (Short)value ).shortValue() ) ) );
-    }
-    else if( value instanceof Integer ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.LE , new IntegerObj( ( (Integer)value ).intValue() ) ) );
-    }
-    else if( value instanceof Long ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.LE , new LongObj( ( (Long)value ).longValue() ) ) );
-    }
-    else if( value instanceof Float ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.LE , new FloatObj( ( (Float)value ).floatValue() ) ) );
-    }
-    else if( value instanceof Double ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.LE , new DoubleObj( ( (Double)value ).doubleValue() ) ) );
-    }
-    else{
-      return null;
-    }
-  }
+    dispatch.put(EqualTo.class, (f) -> {
+      EqualTo filter = (EqualTo)f;
+      Object value = filter.value();
+      OperatorFilterFactory factory = eqDispatch.get(value.getClass());
+      if (Objects.isNull(factory)) return null;
+      return new ExecuterNode(new StringExtractNode(filter.attribute()), factory.apply(value));
+    });
 
-  public static IExpressionNode createEqualTo( final EqualTo filter ){
-    Object value = filter.value();
-    if( value instanceof String ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new PerfectMatchStringFilter( value.toString() ) );
-    }
-    else if( value instanceof Byte ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.EQUAL , new ByteObj( ( (Byte)value ).byteValue() ) ) );
-    }
-    else if( value instanceof Short ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.EQUAL , new ShortObj( ( (Short)value ).shortValue() ) ) );
-    }
-    else if( value instanceof Integer ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.EQUAL , new IntegerObj( ( (Integer)value ).intValue() ) ) );
-    }
-    else if( value instanceof Long ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.EQUAL , new LongObj( ( (Long)value ).longValue() ) ) );
-    }
-    else if( value instanceof Float ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.EQUAL , new FloatObj( ( (Float)value ).floatValue() ) ) );
-    }
-    else if( value instanceof Double ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new NumberFilter( NumberFilterType.EQUAL , new DoubleObj( ( (Double)value ).doubleValue() ) ) );
-    }
-    else if( value instanceof Boolean ){
-      return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new BooleanFilter( ( (Boolean)value ) .booleanValue() ) );
-    }
-    else{
-      return null;
-    }
-  }
+    dispatch.put(StringStartsWith.class, (f) -> {
+      StringStartsWith filter = (StringStartsWith)f;
+      return new ExecuterNode(new StringExtractNode(filter.attribute()), new ForwardMatchStringFilter(filter.value()));
+    });
 
-  public static IExpressionNode createStringStartsWith( final StringStartsWith filter ){
-    return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new ForwardMatchStringFilter( filter.value() ) );
-  }
+    dispatch.put(StringEndsWith.class, (f) -> {
+      StringEndsWith filter = (StringEndsWith)f;
+      return new ExecuterNode(new StringExtractNode(filter.attribute()), new BackwardMatchStringFilter(filter.value()));
+    });
 
-  public static IExpressionNode createStringEndsWith( final StringEndsWith filter ){
-    return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new BackwardMatchStringFilter( filter.value() ) );
-  }
+    dispatch.put(StringContains.class, (f) -> {
+      StringContains filter = (StringContains)f;
+      return new ExecuterNode(new StringExtractNode(filter.attribute()), new PartialMatchStringFilter(filter.value()));
+    });
 
-  public static IExpressionNode createStringContains( final StringContains filter ){
-    return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new PartialMatchStringFilter( filter.value() ) );
-  }
+    dispatch.put(And.class, (f) -> {
+      And filter = (And)f;
+      IExpressionNode result = new AndExpressionNode();
+      result.addChildNode(get(filter.left()));
+      result.addChildNode(get(filter.right()));
+      return result;
+    });
 
-  public static IExpressionNode createIn( final In filter ){
-    Object[] values = filter.values();
-    Set<String> dic = new HashSet<String>();
-    for( Object value : values ){
-      if( value instanceof String ){
-        dic.add( value.toString() );
+    dispatch.put(Or.class, (f) -> {
+      Or filter = (Or)f;
+      IExpressionNode result = new OrExpressionNode();
+      result.addChildNode(get(filter.left()));
+      result.addChildNode(get(filter.right()));
+      return result;
+    });
+
+    dispatch.put(Not.class, (f) -> {
+      Not filter = (Not)f;
+      IExpressionNode result = new NotExpressionNode();
+      result.addChildNode(get(filter.child()));
+      return result;
+    });
+
+    dispatch.put(In.class, (f) -> {
+      In filter = (In)f;
+      Set<String> dic = new HashSet<String>();
+      for (Object value : filter.values()) {
+        if (!(value instanceof String)) return null;
+        dic.add(value.toString());
       }
-      else{
-        return null;
-      }
-    }
-    return new ExecuterNode( new StringExtractNode( filter.attribute() ) , new StringDictionaryFilter( dic ) );
+      return new ExecuterNode(new StringExtractNode(filter.attribute()), new StringDictionaryFilter(dic));
+    });
+
+    dispatch.put(EqualNullSafe.class, (f) -> null);
+    dispatch.put(IsNull.class,        (f) -> null);
+    dispatch.put(IsNotNull.class,     (f) -> null);
   }
 
+  private FilterConnectorFactory() {}
+
+  public static IExpressionNode get(final Filter filter) {
+    ExpressionNodeFactory factory = dispatch.get(filter.getClass());
+    return (Objects.isNull(factory)) ? null : factory.apply(filter);
+  }
+
+  private static void setDispatchMap(Map<Class, OperatorFilterFactory> dispatch, final NumberFilterType type) {
+    dispatch.put(Byte.class,    (v) -> new NumberFilter(type, new ByteObj(((Byte)v).byteValue())));
+    dispatch.put(Short.class,   (v) -> new NumberFilter(type, new ShortObj(((Short)v).shortValue())));
+    dispatch.put(Integer.class, (v) -> new NumberFilter(type, new IntegerObj(((Integer)v).intValue())));
+    dispatch.put(Long.class,    (v) -> new NumberFilter(type, new LongObj(((Long)v).longValue())));
+    dispatch.put(Float.class,   (v) -> new NumberFilter(type, new FloatObj(((Float)v).floatValue())));
+    dispatch.put(Double.class,  (v) -> new NumberFilter(type, new DoubleObj(((Double)v).doubleValue())));
+  }
+
+  @FunctionalInterface
+  private static interface OperatorFilterFactory {
+    IFilter apply(final Object value);
+  }
+
+  @FunctionalInterface
+  private static interface ExpressionNodeFactory {
+    IExpressionNode apply(final Filter filter);
+  }
 }
+

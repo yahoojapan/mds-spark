@@ -83,8 +83,7 @@ public class SparkDoubleMemoryAllocator implements IMemoryAllocator{
 
   @Override
   public void setBytes( final int index , final byte[] value , final int start , final int length ) throws IOException{
-    //throw new UnsupportedOperationException( "Unsupported method setBytes()" );
-    vector.putDoubles( index , length / 8 , value , start );
+    throw new UnsupportedOperationException( "Unsupported method setBytes()" );
   }
 
   @Override
